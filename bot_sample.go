@@ -13,16 +13,17 @@ import (
 )
 
 const (
-	SAMPLE_NAME = "Mattermost Bot Sample"
+	SAMPLE_NAME = "Spotify Bot"
+	USER_EMAIL    = "spotifysyncer@gmail.com"
+	USER_PASSWORD = ""
+	USER_NAME     = "spotify_bot"
+	USER_FIRST    = "Spotify"
+	USER_LAST     = "Syncer"
 
-	USER_EMAIL    = "bot@example.com"
-	USER_PASSWORD = "password1"
-	USER_NAME     = "samplebot"
-	USER_FIRST    = "Sample"
-	USER_LAST     = "Bot"
-
-	TEAM_NAME        = "botsample"
+	TEAM_NAME        = "watshat"
 	CHANNEL_LOG_NAME = "debugging-for-sample-bot"
+	HTTPS_CLIENT_NAME = ""
+	WS_CLIENT_NAME = ""
 )
 
 var client *model.Client4
@@ -39,7 +40,7 @@ func main() {
 
 	SetupGracefulShutdown()
 
-	client = model.NewAPIv4Client("http://localhost:8065")
+	client = model.NewAPIv4Client(HTTPS_CLIENT_NAME)
 
 	// Lets test to see if the mattermost server is up and running
 	MakeSureServerIsRunning()
@@ -64,7 +65,7 @@ func main() {
 	SendMsgToDebuggingChannel("_"+SAMPLE_NAME+" has **started** running_", "")
 
 	// Lets start listening to some channels via the websocket!
-	webSocketClient, err := model.NewWebSocketClient4("ws://localhost:8065", client.AuthToken)
+	webSocketClient, err := model.NewWebSocketClient4(WS_CLIENT_NAME, client.AuthToken)
 	if err != nil {
 		println("We failed to connect to the web socket")
 		PrintError(err)
