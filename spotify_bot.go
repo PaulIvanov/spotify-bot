@@ -1,29 +1,31 @@
-// Copyright (c) 2016 Mattermost, Inc. All Rights Reserved.
-// See License.txt for license information.
-
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
-	"regexp"
-	"strings"
 
+	"github.com/zmb3/spotify"
+
+	spotifyhandler "github.com/PaulIvanov/spotify-bot/spotifysyncer"
 	"github.com/mattermost/mattermost-server/v5/model"
 )
 
 const (
-	SAMPLE_NAME = "Spotify Bot"
-	USER_EMAIL    = "spotifysyncer@gmail.com"
-	USER_PASSWORD = ""
-	USER_NAME     = "spotify_bot"
-	USER_FIRST    = "Spotify"
-	USER_LAST     = "Syncer"
+	SAMPLE_NAME       = "Spotify Bot"
+	USER_NAME         = "spotify_bot"
+	USER_FIRST        = "Spotify"
+	USER_LAST         = "Syncer"
+	TEAM_NAME         = "watshat"
+	CHANNEL_LOG_NAME  = "debugging-for-spotify-bot"
+	EDM_CHANNEL_NAME  = "edm"
+	HTTPS_CLIENT_NAME = "https://chitchat.watsh.at"
+	WS_CLIENT_NAME    = "wss://chitchat.watsh.at:443"
+)
 
-	TEAM_NAME        = "watshat"
-	CHANNEL_LOG_NAME = "debugging-for-sample-bot"
-	HTTPS_CLIENT_NAME = ""
-	WS_CLIENT_NAME = ""
+var (
+	USER_EMAIL    = os.Getenv("MM_USER_EMAIL")
+	USER_PASSWORD = os.Getenv("MM_USER_PASSWORD")
 )
 
 var client *model.Client4
@@ -32,9 +34,8 @@ var webSocketClient *model.WebSocketClient
 var botUser *model.User
 var botTeam *model.Team
 var debuggingChannel *model.Channel
+var edmChannel *model.Channel
 
-// Documentation for the Go driver can be found
-// at https://godoc.org/github.com/mattermost/platform/model#Client
 func main() {
 	println(SAMPLE_NAME)
 
@@ -63,6 +64,7 @@ func main() {
 	// Lets create a bot channel for logging debug messages into
 	CreateBotDebuggingChannelIfNeeded()
 	SendMsgToDebuggingChannel("_"+SAMPLE_NAME+" has **started** running_", "")
+	GetEdmChannel()
 
 	// Lets start listening to some channels via the websocket!
 	webSocketClient, err := model.NewWebSocketClient4(WS_CLIENT_NAME, client.AuthToken)
@@ -78,6 +80,18 @@ func main() {
 			select {
 			case resp := <-webSocketClient.EventChannel:
 				HandleWebSocketResponse(resp)
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			ch := make(chan []spotify.FullTrack)
+			go spotifyhandler.Serve(ch)
+			for songs := range ch {
+				for _, song := range songs {
+					SendMsgToDebuggingChannel(fmt.Sprintf("Paul Liked a new Song: %v", song.SimpleTrack.ExternalURLs["spotify"]), "")
+				}
 			}
 		}
 	}()
@@ -159,6 +173,16 @@ func CreateBotDebuggingChannelIfNeeded() {
 	}
 }
 
+func GetEdmChannel() {
+	if rchannel, resp := client.GetChannelByName(EDM_CHANNEL_NAME, botTeam.Id, ""); resp.Error != nil {
+		println("We failed to get the EDM Channel")
+		PrintError(resp.Error)
+	} else {
+		edmChannel = rchannel
+		return
+	}
+}
+
 func SendMsgToDebuggingChannel(msg string, replyToId string) {
 	post := &model.Post{}
 	post.ChannelId = debuggingChannel.Id
@@ -172,57 +196,21 @@ func SendMsgToDebuggingChannel(msg string, replyToId string) {
 	}
 }
 
-func HandleWebSocketResponse(event *model.WebSocketEvent) {
-	HandleMsgFromDebuggingChannel(event)
+func SendMsgToEdmChannel(msg string, replyToId string) {
+	post := &model.Post{}
+	post.ChannelId = debuggingChannel.Id
+	post.Message = msg
+
+	post.RootId = replyToId
+
+	if _, resp := client.CreatePost(post); resp.Error != nil {
+		println("We failed to send a message to the logging channel")
+		PrintError(resp.Error)
+	}
 }
 
-func HandleMsgFromDebuggingChannel(event *model.WebSocketEvent) {
-	// If this isn't the debugging channel then lets ingore it
-	if event.Broadcast.ChannelId != debuggingChannel.Id {
-		return
-	}
-
-	// Lets only reponded to messaged posted events
-	if event.Event != model.WEBSOCKET_EVENT_POSTED {
-		return
-	}
-
-	println("responding to debugging channel msg")
-
-	post := model.PostFromJson(strings.NewReader(event.Data["post"].(string)))
-	if post != nil {
-
-		// ignore my events
-		if post.UserId == botUser.Id {
-			return
-		}
-
-		// if you see any word matching 'alive' then respond
-		if matched, _ := regexp.MatchString(`(?:^|\W)alive(?:$|\W)`, post.Message); matched {
-			SendMsgToDebuggingChannel("Yes I'm running", post.Id)
-			return
-		}
-
-		// if you see any word matching 'up' then respond
-		if matched, _ := regexp.MatchString(`(?:^|\W)up(?:$|\W)`, post.Message); matched {
-			SendMsgToDebuggingChannel("Yes I'm running", post.Id)
-			return
-		}
-
-		// if you see any word matching 'running' then respond
-		if matched, _ := regexp.MatchString(`(?:^|\W)running(?:$|\W)`, post.Message); matched {
-			SendMsgToDebuggingChannel("Yes I'm running", post.Id)
-			return
-		}
-
-		// if you see any word matching 'hello' then respond
-		if matched, _ := regexp.MatchString(`(?:^|\W)hello(?:$|\W)`, post.Message); matched {
-			SendMsgToDebuggingChannel("Yes I'm running", post.Id)
-			return
-		}
-	}
-
-	SendMsgToDebuggingChannel("I did not understand you!", post.Id)
+func HandleWebSocketResponse(event *model.WebSocketEvent) {
+	fmt.Print("Got message, dont care")
 }
 
 func PrintError(err *model.AppError) {
