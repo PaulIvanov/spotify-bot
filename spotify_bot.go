@@ -83,14 +83,13 @@ func main() {
 			}
 		}
 	}()
-
+	ch := make(chan []spotify.FullTrack)
+	go spotifyhandler.Serve(ch)
 	go func() {
 		for {
-			ch := make(chan []spotify.FullTrack)
-			go spotifyhandler.Serve(ch)
 			for songs := range ch {
 				for _, song := range songs {
-					SendMsgToDebuggingChannel(fmt.Sprintf("Paul Liked a new Song: %v", song.SimpleTrack.ExternalURLs["spotify"]), "")
+					SendMsgToEdmChannel(fmt.Sprintf("Paul Liked a new Song: %v", song.SimpleTrack.ExternalURLs["spotify"]), "")
 				}
 			}
 		}
@@ -198,7 +197,7 @@ func SendMsgToDebuggingChannel(msg string, replyToId string) {
 
 func SendMsgToEdmChannel(msg string, replyToId string) {
 	post := &model.Post{}
-	post.ChannelId = debuggingChannel.Id
+	post.ChannelId = edmChannel.Id
 	post.Message = msg
 
 	post.RootId = replyToId

@@ -171,7 +171,10 @@ func Serve(myChan chan []spotify.FullTrack) {
 		likedSongs := getLikedSongIds(client)
 		addedLikedSongs := syncPublicPlaylistWithLikedSongs(client, playlistID, playlistSongs, likedSongs)
 		newLikedEdmSongs := mapAndFilterEdmSongs(client, addedLikedSongs)
+		fmt.Println("Send songs over")
 		myChan <- newLikedEdmSongs
-		time.Sleep(30 * time.Second)
+		fmt.Println("Sleep starting")
+		time.Sleep(1 * time.Hour)
+		fmt.Println("Sleep over")
 	}
 }
